@@ -10,9 +10,28 @@ A powerful and easy-to-use Discord music bot that plays music from YouTube, with
 - 🚪 Automatically disconnects when the voice channel is empty
 - 🗳️ Customizable command prefix and detailed command list
 
-## How to run
+## Installation and Setup
 
-- Clone repo
-- Generate discord app token
-- Create .env file and add the token ```DISCORD_BOT_TOKEN=<token>```
-- Run ```python3 ./resonance.py```
+Follow these instructions to set up and run the bot on your local machine.
+
+### 1. **Clone the Repository**
+
+
+### 2. **Create and Activate a Virtual Environment**
+```bash
+python3 -m venv venv
+source venv/bin/activate  # On Windows use `venv\Scripts\activate`
+```
+### 3. **Install the Required Python Packages**
+```
+pip install -r requirements.txt
+```
+### 4. **Set Up Your Environment Variables**
+Create a .env file in the project directory to store your Discord bot token
+``` 
+DISCORD_BOT_TOKEN=your_discord_bot_token
+```
+### 5. **Run the Bot**
+```
+python3 resonance.py
+```
