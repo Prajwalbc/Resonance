@@ -1,0 +1,120 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Virtual environment
+venv/
+ENV/
+env/
+env.bak/
+*.env
+
+# Install packages
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+develop-eggs/
+.installed.cfg
+lib/
+lib64/
+__pypackages__/
+
+# Setuptools distribution folder
+pip-wheel-metadata/
+*.egg-info/
+
+# PyInstaller
+#  Usually these files are written by a python script from a template
+#  before PyInstaller builds the exe, so as to inject date/other infos into it.
+*.manifest
+*.spec
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pyre/
+.pytype/
+
+# Environment variables
+.env
+.env.*
+.venv
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# pyenv
+.python-version
+
+# celery beat schedule file
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# dotenv
+.env.local
+.env.test
+.env.production
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# PyCharm
+.idea/
+
+# VS Code
+.vscode/
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+
+# Database
+*.sqlite3
+
+# Discord bot token (environment variables)
+.env
+
+# Additional logs, temporary files, etc.
+*.log
+*.tmp
+*.bak
+*.swp
+
+# Ignore yt-dlp download artifacts
+*.mp3
+*.mp4
+*.webm
+*.m4a
+*.part
+
+# Ignore Docker files (if using Docker)
+docker-compose.override.yml
+docker-compose.local.yml
+
+# Node modules (if using JavaScript/TypeScript)
+node_modules/
