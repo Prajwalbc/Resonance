@@ -15,3 +15,4 @@ A powerful and easy-to-use Discord music bot that plays music from YouTube, with
 - Clone repo
 - Generate discord app token
 - Create .env file and add the token ```DISCORD_BOT_TOKEN=<token>```
+- Run ```python3 ./resonance.py```
