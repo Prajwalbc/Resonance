@@ -293,7 +293,6 @@ async def queue(ctx):
         ))
         raise e
 
-
 @bot.command(name='leave', aliases=['l'], help='Leaves the voice channel.')
 async def leave(ctx):
     global vc
