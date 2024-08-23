@@ -42,7 +42,7 @@ ydl_opts = {
 # Task to check for inactivity and leave if no one is in the voice channel
 @tasks.loop(seconds=60)
 async def check_inactivity():
-    global vc, last_play_time
+    global vc
 
     if vc and vc.is_connected():
         # Leave if no one is in the voice channel
@@ -51,15 +51,6 @@ async def check_inactivity():
             await vc.guild.text_channels[0].send(embed=discord.Embed(
                 title="Disconnected",
                 description="No one is left in the voice channel. Disconnecting...",
-                color=discord.Color.purple()
-            ))
-        
-        # Leave if no song has been played for over 2 minutes
-        elif time.time() - last_play_time > 120 and not vc.is_playing():
-            await vc.disconnect()
-            await vc.guild.text_channels[0].send(embed=discord.Embed(
-                title="Disconnected",
-                description="No song has been played for over 2 minutes. Disconnecting...",
                 color=discord.Color.purple()
             ))
 
@@ -116,7 +107,9 @@ async def play(ctx, *, url: str):
 
         url2 = info['url']
         title = info['title']
-        music_queue.append((url2, title))
+        thumbnail = info['thumbnail']  # Album art
+        duration = info['duration']  # Duration in seconds
+        music_queue.append((url2, title, thumbnail, duration))
         
         if not vc.is_playing():
             await play_music(ctx)
@@ -148,11 +141,20 @@ async def play_music(ctx):
             current_song = music_queue.pop(0)
             vc.play(discord.FFmpegPCMAudio(current_song[0]), after=lambda e: asyncio.run_coroutine_threadsafe(play_music(ctx), bot.loop))
             last_play_time = time.time()  # Update the last play time
-            await ctx.send(embed=discord.Embed(
+
+            duration_str = time.strftime('%H:%M:%S', time.gmtime(current_song[3]))
+
+            embed = discord.Embed(
                 title="Now Playing",
                 description=f"**{current_song[1]}**",
                 color=discord.Color.green()
-            ))
+            )
+            embed.set_thumbnail(url=current_song[2])
+            embed.add_field(name="Duration", value=duration_str)
+            embed.set_footer(text="Use the commands to control playback.")
+
+            await ctx.send(embed=embed)
+                
         else:
             current_song = None
     except Exception as e:
