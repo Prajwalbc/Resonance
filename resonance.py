@@ -266,22 +266,25 @@ async def resume(ctx):
         ))
         raise e
 
-@bot.command(name='queue', aliases=['q'], help='Shows the music queue.')
+@bot.command(name='queue', aliases=['q'], help='Shows the music queue and the currently playing song.')
 async def queue(ctx):
     try:
+        if vc and vc.is_playing() and current_song:
+            now_playing = f"**Now Playing:**\n**{current_song[1]}**\n"
+        else:
+            now_playing = "**No song is currently playing.**\n"
+        
         if music_queue:
             queue_str = "\n".join([f"{i+1}. **{song[1]}**" for i, song in enumerate(music_queue)])
-            await ctx.send(embed=discord.Embed(
-                title="Music Queue",
-                description=queue_str,
-                color=discord.Color.blue()
-            ))
+            description = f"{now_playing}\n**Queue:**\n{queue_str}"
         else:
-            await ctx.send(embed=discord.Embed(
-                title="Queue Empty",
-                description="The queue is currently empty.",
-                color=discord.Color.orange()
-            ))
+            description = f"{now_playing}\nThe queue is currently empty."
+        
+        await ctx.send(embed=discord.Embed(
+            title="Music Queue",
+            description=description,
+            color=discord.Color.blue()
+        ))
     except Exception as e:
         await ctx.send(embed=discord.Embed(
             title="Error",
@@ -289,6 +292,7 @@ async def queue(ctx):
             color=discord.Color.red()
         ))
         raise e
+
 
 @bot.command(name='leave', aliases=['l'], help='Leaves the voice channel.')
 async def leave(ctx):
