@@ -26,6 +26,7 @@ music_queue = []
 current_song = None
 vc = None
 last_play_time = 0
+is_looping = False  # Variable to track looping state
 
 # YouTube downloader options
 ydl_opts = {
@@ -61,7 +62,8 @@ async def on_ready():
 
 @bot.command(name='play', aliases=['p'], help='Plays a song from a YouTube URL or search term.')
 async def play(ctx, *, url: str):
-    global vc, last_play_time
+    global vc, last_play_time, is_looping
+    is_looping = False  # Reset looping when a new song is played
     try:
         voice_channel = ctx.author.voice.channel
         
@@ -179,7 +181,11 @@ async def handle_next_song(ctx):
         # Add a 2-second delay before playing the next song
         await asyncio.sleep(2)
 
-        if len(music_queue) > 0:
+        if is_looping and current_song:
+            # Replay the current song if looping is enabled
+            music_queue.insert(0, current_song)  # Insert the current song back to the front of the queue
+            await play_music(ctx)
+        elif len(music_queue) > 0:
             await play_music(ctx)
         else:
             current_song = None
@@ -196,13 +202,25 @@ async def handle_next_song(ctx):
             color=discord.Color.red()
         ))
 
+@bot.command(name='loop', help='Toggles loop for the current song.')
+async def loop(ctx):
+    global is_looping
+    is_looping = not is_looping
+    status = "enabled" if is_looping else "disabled"
+    await ctx.send(embed=discord.Embed(
+        title="Loop Toggled",
+        description=f"Looping has been **{status}**.",
+        color=discord.Color.purple()
+    ))
+
 @bot.command(name='stop', help='Stops the current song and clears the queue.')
 async def stop(ctx):
-    global vc, music_queue
+    global vc, music_queue, is_looping
     try:
         if vc and vc.is_playing():
             vc.stop()
             music_queue.clear()  # Clear the queue
+            is_looping = False  # Reset looping state
             await ctx.send(embed=discord.Embed(
                 title="Music Stopped",
                 description="The music has been stopped and the queue has been cleared.",
