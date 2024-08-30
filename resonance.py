@@ -139,7 +139,9 @@ async def play_music(ctx):
     try:
         if len(music_queue) > 0:
             current_song = music_queue.pop(0)
-            vc.play(discord.FFmpegPCMAudio(current_song[0]), after=lambda e: asyncio.run_coroutine_threadsafe(play_music(ctx), bot.loop))
+            
+            # Play the song
+            vc.play(discord.FFmpegPCMAudio(current_song[0]), after=lambda e: bot.loop.create_task(handle_next_song(ctx)))
             last_play_time = time.time()  # Update the last play time
 
             duration_str = time.strftime('%H:%M:%S', time.gmtime(current_song[3]))
@@ -164,6 +166,35 @@ async def play_music(ctx):
             color=discord.Color.red()
         ))
         raise e
+
+async def handle_next_song(ctx):
+    global current_song
+
+    try:
+        # Wait for the current song to finish
+        if vc and vc.is_playing():
+            while vc.is_playing():
+                await asyncio.sleep(1)
+
+        # Add a 2-second delay before playing the next song
+        await asyncio.sleep(2)
+
+        if len(music_queue) > 0:
+            await play_music(ctx)
+        else:
+            current_song = None
+            await ctx.send(embed=discord.Embed(
+                title="Queue Empty",
+                description="The music queue is empty. Add more songs to keep the party going!",
+                color=discord.Color.orange()
+            ))
+
+    except Exception as e:
+        await ctx.send(embed=discord.Embed(
+            title="Error",
+            description=f"An error occurred while transitioning to the next song: {str(e)}",
+            color=discord.Color.red()
+        ))
 
 @bot.command(name='stop', help='Stops the current song and clears the queue.')
 async def stop(ctx):
