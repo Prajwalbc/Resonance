@@ -21,12 +21,8 @@ intents.voice_states = True
 # Create bot with more descriptive command prefix
 bot = commands.Bot(command_prefix='-', intents=intents, help_command=None)
 
-# Global variables to store queue, voice client, and other states
-music_queue = []
-current_song = None
-vc = None
-last_play_time = 0
-is_looping = False  # Variable to track looping state
+# Server-specific state storage
+server_states = {}
 
 # YouTube downloader options
 ydl_opts = {
@@ -43,32 +39,46 @@ ydl_opts = {
 # Task to check for inactivity and leave if no one is in the voice channel
 @tasks.loop(seconds=60)
 async def check_inactivity():
-    global vc
-
-    if vc and vc.is_connected():
-        # Leave if no one is in the voice channel
-        if len(vc.channel.members) == 1:  # Only the bot is left
-            await vc.disconnect()
-            await vc.guild.text_channels[0].send(embed=discord.Embed(
-                title="Disconnected",
-                description="No one is left in the voice channel. Disconnecting...",
-                color=discord.Color.purple()
-            ))
+    for guild_id, state in list(server_states.items()):
+        vc = state.get('vc')
+        if vc and vc.is_connected():
+            # Leave if no one is in the voice channel
+            if len(vc.channel.members) == 1:  # Only the bot is left
+                await vc.disconnect()
+                await state['text_channel'].send(embed=discord.Embed(
+                    title="Disconnected",
+                    description="No one is left in the voice channel. Disconnecting...",
+                    color=discord.Color.purple()
+                ))
+                del server_states[guild_id]
 
 @bot.event
 async def on_ready():
     print(f'{bot.user} has connected to Discord!')
     check_inactivity.start()
 
+def get_server_state(ctx):
+    guild_id = ctx.guild.id
+    if guild_id not in server_states:
+        server_states[guild_id] = {
+            'music_queue': [],
+            'current_song': None,
+            'vc': None,
+            'is_looping': False,
+            'text_channel': ctx.channel
+        }
+    return server_states[guild_id]
+
 @bot.command(name='play', aliases=['p'], help='Plays a song from a YouTube URL or search term.')
 async def play(ctx, *, url: str):
-    global vc, last_play_time, is_looping
-    is_looping = False  # Reset looping when a new song is played
+    state = get_server_state(ctx)
+    state['is_looping'] = False  # Reset looping when a new song is played
+
     try:
         voice_channel = ctx.author.voice.channel
         
-        if not vc or not vc.is_connected():
-            vc = await voice_channel.connect()
+        if not state['vc'] or not state['vc'].is_connected():
+            state['vc'] = await voice_channel.connect()
 
         with youtube_dl.YoutubeDL(ydl_opts) as ydl:
             try:
@@ -111,9 +121,9 @@ async def play(ctx, *, url: str):
         title = info['title']
         thumbnail = info['thumbnail']  # Album art
         duration = info['duration']  # Duration in seconds
-        music_queue.append((url2, title, thumbnail, duration))
+        state['music_queue'].append((url2, title, thumbnail, duration))
         
-        if not vc.is_playing():
+        if not state['vc'].is_playing():
             await play_music(ctx)
         else:
             await ctx.send(embed=discord.Embed(
@@ -136,31 +146,30 @@ async def play(ctx, *, url: str):
         raise e
 
 async def play_music(ctx):
-    global current_song, vc, last_play_time
-    
+    state = get_server_state(ctx)
+    vc = state['vc']
+
     try:
-        if len(music_queue) > 0:
-            current_song = music_queue.pop(0)
+        if len(state['music_queue']) > 0:
+            state['current_song'] = state['music_queue'].pop(0)
             
             # Play the song
-            vc.play(discord.FFmpegPCMAudio(current_song[0]), after=lambda e: bot.loop.create_task(handle_next_song(ctx)))
-            last_play_time = time.time()  # Update the last play time
-
-            duration_str = time.strftime('%H:%M:%S', time.gmtime(current_song[3]))
+            vc.play(discord.FFmpegPCMAudio(state['current_song'][0]), after=lambda e: bot.loop.create_task(handle_next_song(ctx)))
+            duration_str = time.strftime('%H:%M:%S', time.gmtime(state['current_song'][3]))
 
             embed = discord.Embed(
                 title="Now Playing",
-                description=f"**{current_song[1]}**",
+                description=f"**{state['current_song'][1]}**",
                 color=discord.Color.green()
             )
-            embed.set_thumbnail(url=current_song[2])
+            embed.set_thumbnail(url=state['current_song'][2])
             embed.add_field(name="Duration", value=duration_str)
             embed.set_footer(text="Use the commands to control playback.")
 
             await ctx.send(embed=embed)
                 
         else:
-            current_song = None
+            state['current_song'] = None
     except Exception as e:
         await ctx.send(embed=discord.Embed(
             title="Error",
@@ -170,7 +179,8 @@ async def play_music(ctx):
         raise e
 
 async def handle_next_song(ctx):
-    global current_song
+    state = get_server_state(ctx)
+    vc = state['vc']
 
     try:
         # Wait for the current song to finish
@@ -181,14 +191,14 @@ async def handle_next_song(ctx):
         # Add a 2-second delay before playing the next song
         await asyncio.sleep(2)
 
-        if is_looping and current_song:
+        if state['is_looping'] and state['current_song']:
             # Replay the current song if looping is enabled
-            music_queue.insert(0, current_song)  # Insert the current song back to the front of the queue
+            state['music_queue'].insert(0, state['current_song'])  # Insert the current song back to the front of the queue
             await play_music(ctx)
-        elif len(music_queue) > 0:
+        elif len(state['music_queue']) > 0:
             await play_music(ctx)
         else:
-            current_song = None
+            state['current_song'] = None
             await ctx.send(embed=discord.Embed(
                 title="Queue Empty",
                 description="The music queue is empty. Add more songs to keep the party going!",
@@ -204,9 +214,9 @@ async def handle_next_song(ctx):
 
 @bot.command(name='loop', help='Toggles loop for the current song.')
 async def loop(ctx):
-    global is_looping
-    is_looping = not is_looping
-    status = "enabled" if is_looping else "disabled"
+    state = get_server_state(ctx)
+    state['is_looping'] = not state['is_looping']
+    status = "enabled" if state['is_looping'] else "disabled"
     await ctx.send(embed=discord.Embed(
         title="Loop Toggled",
         description=f"Looping has been **{status}**.",
@@ -215,12 +225,13 @@ async def loop(ctx):
 
 @bot.command(name='stop', help='Stops the current song and clears the queue.')
 async def stop(ctx):
-    global vc, music_queue, is_looping
+    state = get_server_state(ctx)
+    vc = state['vc']
     try:
         if vc and vc.is_playing():
             vc.stop()
-            music_queue.clear()  # Clear the queue
-            is_looping = False  # Reset looping state
+            state['music_queue'].clear()  # Clear the queue
+            state['is_looping'] = False  # Reset looping state
             await ctx.send(embed=discord.Embed(
                 title="Music Stopped",
                 description="The music has been stopped and the queue has been cleared.",
@@ -242,10 +253,11 @@ async def stop(ctx):
 
 @bot.command(name='skip', help='Skips the current song.')
 async def skip(ctx):
-    global vc
+    state = get_server_state(ctx)
+    vc = state['vc']
     try:
         if vc and vc.is_playing():
-            vc.stop()
+            vc.stop()  # Stop the current song, which triggers handle_next_song to play the next song
             await ctx.send(embed=discord.Embed(
                 title="Song Skipped",
                 description="The current song has been skipped.",
@@ -254,7 +266,7 @@ async def skip(ctx):
         else:
             await ctx.send(embed=discord.Embed(
                 title="No Music Playing",
-                description="There is no music currently playing.",
+                description="There is no music currently playing to skip.",
                 color=discord.Color.orange()
             ))
     except Exception as e:
@@ -267,7 +279,8 @@ async def skip(ctx):
 
 @bot.command(name='pause', help='Pauses the current song.')
 async def pause(ctx):
-    global vc
+    state = get_server_state(ctx)
+    vc = state['vc']
     try:
         if vc and vc.is_playing():
             vc.pause()
@@ -292,7 +305,8 @@ async def pause(ctx):
 
 @bot.command(name='resume', help='Resumes the paused song.')
 async def resume(ctx):
-    global vc
+    state = get_server_state(ctx)
+    vc = state['vc']
     try:
         if vc and vc.is_paused():
             vc.resume()
@@ -317,14 +331,16 @@ async def resume(ctx):
 
 @bot.command(name='queue', aliases=['q'], help='Shows the music queue and the currently playing song.')
 async def queue(ctx):
+    state = get_server_state(ctx)
+    vc = state['vc']
     try:
-        if vc and vc.is_playing() and current_song:
-            now_playing = f"**Now Playing:**\n**{current_song[1]}**\n"
+        if vc and vc.is_playing() and state['current_song']:
+            now_playing = f"**Now Playing:**\n**{state['current_song'][1]}**\n"
         else:
             now_playing = "**No song is currently playing.**\n"
         
-        if music_queue:
-            queue_str = "\n".join([f"{i+1}. **{song[1]}**" for i, song in enumerate(music_queue)])
+        if state['music_queue']:
+            queue_str = "\n".join([f"{i+1}. **{song[1]}**" for i, song in enumerate(state['music_queue'])])
             description = f"{now_playing}\n**Queue:**\n{queue_str}"
         else:
             description = f"{now_playing}\nThe queue is currently empty."
@@ -344,7 +360,8 @@ async def queue(ctx):
 
 @bot.command(name='leave', aliases=['l'], help='Leaves the voice channel.')
 async def leave(ctx):
-    global vc
+    state = get_server_state(ctx)
+    vc = state['vc']
     try:
         if vc and vc.is_connected():
             await vc.disconnect()
@@ -353,6 +370,7 @@ async def leave(ctx):
                 description="The bot has disconnected from the voice channel.",
                 color=discord.Color.purple()
             ))
+            del server_states[ctx.guild.id]  # Clean up server state
         else:
             await ctx.send(embed=discord.Embed(
                 title="Not Connected",
